@@ -3258,6 +3258,8 @@ Please submit there instead, or use --nodevelproject to force direct submission.
                         help='branch against a specific revision')
     @cmdln.option('--linkrev', metavar='linkrev',
                         help='specify the used revision in the link target.')
+    @cmdln.option('--recursive', action='store_true',
+                        help='branch package recursive with all its dependencies.')
     def do_branch(self, subcmd, opts, *args):
         """${cmd_name}: Branch a package
 
@@ -3384,7 +3386,33 @@ Please submit there instead, or use --nodevelproject to force direct submission.
 
             return srcprj, srcpkg
 
-        branch_single_pkg(args[0], args[1])
+        def depenson(project, package):
+            def repo_and_arch(project, package):
+                disabled = show_package_disabled_repos(apiurl, project, package)
+                for repo in get_repos_of_project(apiurl, project):
+                    if (disabled is None) or ((disabled is not None) and (repo.name not in disabled)):
+                        return (repo.name, repo.arch)
+
+            repository, arch = repo_and_arch(project, package)
+            xml = get_dependson(apiurl, project, repository, arch, [package])
+
+            root = ET.fromstring(xml)
+            for package in root.findall('package'):
+                for dep in package.findall('pkgdep'):
+                    yield dep.text
+
+        if not opts.recursive:
+            branch_single_pkg(args[0], args[1])
+        else:
+            tobranch = set([(args[0], args[1])])
+            branched = set([])
+            while len(tobranch):
+                project, package = tobranch.pop()
+                if (project, package) in branched:
+                    continue
+                srcprj, srcpkg = branch_single_pkg(project, package)
+                tobranch.update([(srcprj, x) for x in depenson(srcprj, srcpkg)])
+                branched.add((project, package))
 
     @cmdln.option('-m', '--message', metavar='TEXT',
                   help='specify log message TEXT')
