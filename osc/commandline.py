@@ -3314,73 +3314,77 @@ Please submit there instead, or use --nodevelproject to force direct submission.
         if len(args) >= 4:
             tpackage = args[3]
 
-        try:
-          exists, targetprj, targetpkg, srcprj, srcpkg = \
-                branch_pkg(apiurl, args[0], args[1],
-                           nodevelproject=opts.nodevelproject, rev=opts.revision,
-                           linkrev=opts.linkrev,
-                           target_project=tproject, target_package=tpackage,
-                           return_existing=opts.checkout, msg=opts.message or '',
-                           force=opts.force, noaccess=opts.noaccess,
-                           add_repositories=opts.add_repositories,
-                           extend_package_names=opts.extend_package_names,
-                           missingok=opts.new_package,
-                           maintenance=opts.maintenance)
-        except oscerr.NotMissing as e:
-          print('NOTE: Package target exists already via project links, link will point to given project.')
-          print('      A submission will initialize a new instance.')
-          exists, targetprj, targetpkg, srcprj, srcpkg = \
-                branch_pkg(apiurl, args[0], args[1],
-                           nodevelproject=opts.nodevelproject, rev=opts.revision,
-                           linkrev=opts.linkrev,
-                           target_project=tproject, target_package=tpackage,
-                           return_existing=opts.checkout, msg=opts.message or '',
-                           force=opts.force, noaccess=opts.noaccess,
-                           add_repositories=opts.add_repositories,
-                           extend_package_names=opts.extend_package_names,
-                           missingok=False,
-                           maintenance=opts.maintenance,
-                           newinstance=opts.new_package)
-          
-        if exists:
-            print('Using existing branch project: %s' % targetprj, file=sys.stderr)
-
-        devloc = None
-        if not exists and (srcprj != args[0] or srcpkg != args[1]):
+        def branch_single_pkg(project, package):
             try:
-                root = ET.fromstring(''.join(show_attribute_meta(apiurl, args[0], None, None,
-                    conf.config['maintained_update_project_attribute'], False, False)))
-                # this might raise an AttributeError
-                uproject = root.find('attribute').find('value').text
-                print('\nNote: The branch has been created from the configured update project: %s' \
-                    % uproject)
-            except (AttributeError, HTTPError) as e:
-                devloc = srcprj
-                print('\nNote: The branch has been created of a different project,\n' \
-                      '              %s,\n' \
-                      '      which is the primary location of where development for\n' \
-                      '      that package takes place.\n' \
-                      '      That\'s also where you would normally make changes against.\n' \
-                      '      A direct branch of the specified package can be forced\n' \
-                      '      with the --nodevelproject option.\n' % devloc)
+              exists, targetprj, targetpkg, srcprj, srcpkg = \
+                    branch_pkg(apiurl, project, package,
+                               nodevelproject=opts.nodevelproject, rev=opts.revision,
+                               linkrev=opts.linkrev,
+                               target_project=tproject, target_package=tpackage,
+                               return_existing=opts.checkout, msg=opts.message or '',
+                               force=opts.force, noaccess=opts.noaccess,
+                               add_repositories=opts.add_repositories,
+                               extend_package_names=opts.extend_package_names,
+                               missingok=opts.new_package,
+                               maintenance=opts.maintenance)
+            except oscerr.NotMissing as e:
+              print('NOTE: Package target exists already via project links, link will point to given project.')
+              print('      A submission will initialize a new instance.')
+              exists, targetprj, targetpkg, srcprj, srcpkg = \
+                    branch_pkg(apiurl, project, package,
+                               nodevelproject=opts.nodevelproject, rev=opts.revision,
+                               linkrev=opts.linkrev,
+                               target_project=tproject, target_package=tpackage,
+                               return_existing=opts.checkout, msg=opts.message or '',
+                               force=opts.force, noaccess=opts.noaccess,
+                               add_repositories=opts.add_repositories,
+                               extend_package_names=opts.extend_package_names,
+                               missingok=False,
+                               maintenance=opts.maintenance,
+                               newinstance=opts.new_package)
 
-        package = targetpkg or args[1]
-        if opts.checkout:
-            checkout_package(apiurl, targetprj, package, server_service_files=False,
-                             expand_link=True, prj_dir=targetprj)
-            if conf.config['verbose']:
-                print('Note: You can use "osc delete" or "osc submitpac" when done.\n')
-        else:
-            apiopt = ''
-            if conf.get_configParser().get('general', 'apiurl') != apiurl:
-                apiopt = '-A %s ' % apiurl
-            print('A working copy of the branched package can be checked out with:\n\n' \
-                  'osc %sco %s/%s' \
-                      % (apiopt, targetprj, package))
-        print_request_list(apiurl, args[0], args[1])
-        if devloc:
-            print_request_list(apiurl, devloc, srcpkg)
+            if exists:
+                print('Using existing branch project: %s' % targetprj, file=sys.stderr)
 
+            devloc = None
+            if not exists and (srcprj != project or srcpkg != package):
+                try:
+                    root = ET.fromstring(''.join(show_attribute_meta(apiurl, project, None, None,
+                        conf.config['maintained_update_project_attribute'], False, False)))
+                    # this might raise an AttributeError
+                    uproject = root.find('attribute').find('value').text
+                    print('\nNote: The branch has been created from the configured update project: %s' \
+                        % uproject)
+                except (AttributeError, HTTPError) as e:
+                    devloc = srcprj
+                    print('\nNote: The branch has been created of a different project,\n' \
+                          '              %s,\n' \
+                          '      which is the primary location of where development for\n' \
+                          '      that package takes place.\n' \
+                          '      That\'s also where you would normally make changes against.\n' \
+                          '      A direct branch of the specified package can be forced\n' \
+                          '      with the --nodevelproject option.\n' % devloc)
+
+            targetpkg = targetpkg or package
+            if opts.checkout:
+                checkout_package(apiurl, targetprj, targetpkg, server_service_files=False,
+                                 expand_link=True, prj_dir=targetprj)
+                if conf.config['verbose']:
+                    print('Note: You can use "osc delete" or "osc submitpac" when done.\n')
+            else:
+                apiopt = ''
+                if conf.get_configParser().get('general', 'apiurl') != apiurl:
+                    apiopt = '-A %s ' % apiurl
+                print('A working copy of the branched package can be checked out with:\n\n' \
+                      'osc %sco %s/%s' \
+                          % (apiopt, targetprj, targetpkg))
+            print_request_list(apiurl, project, package)
+            if devloc:
+                print_request_list(apiurl, devloc, srcpkg)
+
+            return srcprj, srcpkg
+
+        branch_single_pkg(args[0], args[1])
 
     @cmdln.option('-m', '--message', metavar='TEXT',
                   help='specify log message TEXT')
